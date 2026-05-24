@@ -2,8 +2,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.dependencies import get_current_account
-from app.models import Account
+from app.features.accounts.dependencies import get_current_account
+from app.features.accounts.models import Account
 
 router = APIRouter(prefix="/operational", tags=["operational"])
 

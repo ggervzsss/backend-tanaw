@@ -1,14 +1,14 @@
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings
-from app.models import Account, AccountRole, AccountStatus
-from app.security import hash_password
+from app.core.config import get_settings
+from app.core.security import hash_password
+from app.features.accounts.models import Account, AccountRole, AccountStatus
+from app.features.accounts.service import get_account_by_email
 
 
 async def seed_default_it_account(db: AsyncSession) -> None:
     settings = get_settings()
-    existing_account = await db.scalar(select(Account).where(Account.email == settings.default_it_username))
+    existing_account = await get_account_by_email(db, settings.default_it_username)
     if existing_account is not None:
         return
 

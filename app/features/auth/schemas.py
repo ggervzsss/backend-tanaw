@@ -1,12 +1,6 @@
 from pydantic import BaseModel, EmailStr
 
-
-class AuthUser(BaseModel):
-    id: str
-    email: str
-    displayName: str
-    role: str
-    title: str
+from app.features.accounts.schemas import AuthUser
 
 
 class LoginRequest(BaseModel):

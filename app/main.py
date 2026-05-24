@@ -4,10 +4,11 @@ from collections.abc import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import get_settings
-from app.database import AsyncSessionLocal, Base, engine
-from app.routers import auth, operational
-from app.seed import seed_default_it_account
+from app.api.router import api_router
+from app.core.config import get_settings
+from app.db.base import Base
+from app.db.session import AsyncSessionLocal, engine
+from app.features.accounts.seed import seed_default_it_account
 
 
 @asynccontextmanager
@@ -32,8 +33,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
-app.include_router(operational.router)
+app.include_router(api_router)
 
 
 @app.get("/health")
