@@ -7,8 +7,8 @@ from app.core.security import create_access_token
 from app.db.session import get_db
 from app.features.accounts.dependencies import get_current_account
 from app.features.accounts.models import Account, AccountStatus
-from app.features.accounts.schemas import AuthUser
-from app.features.accounts.service import record_login, to_auth_user
+from app.features.accounts.schemas import AuthUser, PasswordChangeRequest
+from app.features.accounts.service import change_account_password, record_login, to_auth_user
 from app.features.auth.schemas import LoginRequest, LoginResponse
 from app.features.auth.service import authenticate_account
 
@@ -22,10 +22,24 @@ async def login(payload: LoginRequest, db: Annotated[AsyncSession, Depends(get_d
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.")
 
     await record_login(db, account)
-    token = create_access_token(account.id, {"role": account.role.value})
+    token = create_access_token(account.id, {"role": account.role.value, "must_change_password": account.must_change_password})
     return LoginResponse(token=token, user=to_auth_user(account))
 
 
 @router.get("/me", response_model=AuthUser)
 async def me(account: Annotated[Account, Depends(get_current_account)]) -> AuthUser:
     return to_auth_user(account)
+
+
+@router.post("/change-password", response_model=LoginResponse)
+async def change_password(
+    payload: PasswordChangeRequest,
+    account: Annotated[Account, Depends(get_current_account)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> LoginResponse:
+    changed = await change_account_password(db, account, payload.currentPassword, payload.newPassword)
+    if not changed:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect.")
+
+    token = create_access_token(account.id, {"role": account.role.value, "must_change_password": False})
+    return LoginResponse(token=token, user=to_auth_user(account))

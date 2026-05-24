@@ -1,10 +1,10 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, Field
 
 from app.features.accounts.schemas import AuthUser
 
 
 class LoginRequest(BaseModel):
-    username: EmailStr
+    username: str = Field(min_length=1)
     password: str
 
 

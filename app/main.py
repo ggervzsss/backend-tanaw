@@ -11,10 +11,34 @@ from app.db.session import AsyncSessionLocal, engine
 from app.features.accounts.seed import seed_default_it_account
 
 
+async def ensure_account_onboarding_schema(connection) -> None:
+    statements = [
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS phone VARCHAR(40)",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS first_name VARCHAR(60)",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS last_name VARCHAR(60)",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS enterprise_name VARCHAR(120)",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS category VARCHAR(120)",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS manager_name VARCHAR(120)",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS barangay VARCHAR(120)",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS address VARCHAR(255)",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS enterprise_id VARCHAR(120)",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS gateway_id VARCHAR(120)",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS gateway_status VARCHAR(40)",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT false",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS temporary_password_created_at TIMESTAMP WITH TIME ZONE",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS temporary_password_expires_at TIMESTAMP WITH TIME ZONE",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP WITH TIME ZONE",
+    ]
+    for statement in statements:
+        await connection.exec_driver_sql(statement)
+    await connection.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS ix_accounts_enterprise_id ON accounts (enterprise_id)")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+        await ensure_account_onboarding_schema(connection)
 
     async with AsyncSessionLocal() as session:
         await seed_default_it_account(session)

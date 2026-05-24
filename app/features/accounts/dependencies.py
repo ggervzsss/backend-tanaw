@@ -35,3 +35,20 @@ async def get_current_account(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account is not active.")
 
     return account
+
+
+def require_roles(allowed_roles: set[str]):
+    async def dependency(account: Annotated[Account, Depends(get_current_account)]) -> Account:
+        if account.must_change_password:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Password change required.")
+        if account.role.value not in allowed_roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient account permissions.")
+        return account
+
+    return dependency
+
+
+async def get_current_operational_account(account: Annotated[Account, Depends(get_current_account)]) -> Account:
+    if account.must_change_password:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Password change required.")
+    return account
