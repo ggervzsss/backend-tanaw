@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-ActivityLogCategory = Literal["IT Activity", "Staff Submission", "Staff Operation", "Admin Operation", "System"]
+ActivityLogCategory = Literal["IT Activity", "Staff Submission", "Staff Operation", "Admin Operation", "Enterprise Activity", "System"]
 ActivityLogSeverity = Literal["Info", "Warning", "Critical", "Success"]
 ActivityLogActorRole = Literal["Admin", "IT Personnel", "LGU Staff", "Enterprise Account", "System"]
 

@@ -25,6 +25,16 @@ def is_login_scope_allowed(account: Account, login_scope: str) -> bool:
     return account.role != AccountRole.ENTERPRISE
 
 
+def get_auth_log_category(account: Account) -> str:
+    if account.role == AccountRole.ADMIN:
+        return "Admin Operation"
+    if account.role == AccountRole.IT:
+        return "IT Activity"
+    if account.role == AccountRole.STAFF:
+        return "Staff Operation"
+    return "Enterprise Activity"
+
+
 @router.post("/login", response_model=LoginResponse)
 async def login(payload: LoginRequest, db: Annotated[AsyncSession, Depends(get_db)]) -> LoginResponse:
     account = await authenticate_account(db, payload.username, payload.password)
@@ -34,7 +44,7 @@ async def login(payload: LoginRequest, db: Annotated[AsyncSession, Depends(get_d
     await record_login(db, account)
     await record_auth_log(
         db,
-        category="System",
+        category=get_auth_log_category(account),
         severity="Info",
         actor=account.display_name,
         actor_role=get_actor_role_label(account),
@@ -59,7 +69,7 @@ async def logout(
 ) -> dict[str, str]:
     await record_auth_log(
         db,
-        category="System",
+        category=get_auth_log_category(account),
         severity="Info",
         actor=account.display_name,
         actor_role=get_actor_role_label(account),
@@ -83,7 +93,7 @@ async def change_password(
 
     await record_auth_log(
         db,
-        category="System",
+        category=get_auth_log_category(account),
         severity="Success",
         actor=account.display_name,
         actor_role=get_actor_role_label(account),
