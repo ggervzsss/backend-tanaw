@@ -1,4 +1,21 @@
-ENTERPRISE_CATEGORIES = ("events venue", "tourism", "business")
+ENTERPRISE_CATEGORY_LABELS = {
+    "events venue": "Events Venue",
+    "tourism": "Tourism",
+    "business": "Business",
+}
+
+ENTERPRISE_CATEGORIES = tuple(ENTERPRISE_CATEGORY_LABELS.keys())
+
+
+def format_enterprise_category(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    normalized = value.strip().lower()
+    if not normalized:
+        return None
+
+    return ENTERPRISE_CATEGORY_LABELS.get(normalized, value.strip())
 
 SAN_PEDRO_BARANGAYS = (
     "Bagong Silang",

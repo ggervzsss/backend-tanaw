@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.features.accounts.dependencies import get_current_operational_account
 from app.features.accounts.models import Account, AccountRole, AccountStatus
+from app.features.accounts.options import format_enterprise_category
 
 router = APIRouter(prefix="/operational", tags=["operational"])
 
@@ -65,7 +66,7 @@ async def list_report_enterprises(
         {
             "id": account.enterprise_id or account.id,
             "name": account.enterprise_name or account.display_name,
-            "category": account.category or "Uncategorized",
+            "category": format_enterprise_category(account.category) or "Uncategorized",
             "barangay": account.barangay or "Unassigned",
             "complianceOwner": account.manager_name or account.email,
         }

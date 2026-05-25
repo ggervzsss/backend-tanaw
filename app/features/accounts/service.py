@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password, verify_password
 from app.features.accounts.models import Account, AccountRole, AccountStatus, DeliveryChannel, DeliveryStatus, DevDelivery
+from app.features.accounts.options import format_enterprise_category
 from app.features.accounts.schemas import AccountSummary, AuthUser, DeliverySummary
 
 
@@ -24,7 +25,7 @@ def to_auth_user(account: Account) -> AuthUser:
         lastName=account.last_name,
         enterpriseId=account.enterprise_id,
         enterpriseName=account.enterprise_name,
-        category=account.category,
+        category=format_enterprise_category(account.category),
         managerName=account.manager_name,
         barangay=account.barangay,
         address=account.address,
@@ -39,7 +40,7 @@ def to_account_summary(account: Account) -> AccountSummary:
         firstName=account.first_name,
         lastName=account.last_name,
         enterpriseName=account.enterprise_name,
-        category=account.category,
+        category=format_enterprise_category(account.category),
         managerName=account.manager_name,
         barangay=account.barangay,
         address=account.address,

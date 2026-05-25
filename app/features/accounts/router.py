@@ -38,6 +38,7 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 dev_router = APIRouter(prefix="/dev", tags=["dev"])
 
 ITAccount = Annotated[Account, Depends(require_roles({"it"}))]
+EnterpriseReadAccount = Annotated[Account, Depends(require_roles({"it", "admin"}))]
 
 
 @router.get("/lgu", response_model=list[AccountSummary])
@@ -102,7 +103,7 @@ async def create_lgu_account(
 
 @router.get("/enterprises", response_model=list[AccountSummary])
 async def list_enterprise_accounts(
-    _: ITAccount,
+    _: EnterpriseReadAccount,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[AccountSummary]:
     accounts = await list_accounts_by_roles(db, [AccountRole.ENTERPRISE])
