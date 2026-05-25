@@ -13,8 +13,15 @@ class AuthUser(BaseModel):
     role: str
     title: str
     mustChangePassword: bool = False
+    phone: str | None = None
+    firstName: str | None = None
+    lastName: str | None = None
     enterpriseId: str | None = None
     enterpriseName: str | None = None
+    category: str | None = None
+    managerName: str | None = None
+    barangay: str | None = None
+    address: str | None = None
 
 
 class LguAccountCreate(BaseModel):

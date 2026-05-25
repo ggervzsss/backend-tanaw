@@ -38,6 +38,25 @@ async def ensure_account_onboarding_schema(connection) -> None:
     for statement in statements:
         await connection.exec_driver_sql(statement)
     await connection.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS ix_accounts_enterprise_id ON accounts (enterprise_id)")
+    await connection.exec_driver_sql(
+        """
+        CREATE TABLE IF NOT EXISTS activity_logs (
+            id VARCHAR(36) PRIMARY KEY,
+            timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+            category VARCHAR(40) NOT NULL,
+            severity VARCHAR(20) NOT NULL,
+            actor VARCHAR(120) NOT NULL,
+            actor_role VARCHAR(40) NOT NULL,
+            action VARCHAR(120) NOT NULL,
+            target VARCHAR(255) NOT NULL,
+            summary TEXT NOT NULL,
+            source_id VARCHAR(120),
+            metadata_json TEXT
+        )
+        """,
+    )
+    await connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_activity_logs_category ON activity_logs (category)")
+    await connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_activity_logs_actor_role ON activity_logs (actor_role)")
 
 
 @asynccontextmanager

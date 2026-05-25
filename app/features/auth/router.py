@@ -9,6 +9,9 @@ from app.features.accounts.dependencies import get_current_account
 from app.features.accounts.models import Account, AccountRole, AccountStatus
 from app.features.accounts.schemas import AuthUser, PasswordChangeRequest
 from app.features.accounts.service import change_account_password, record_login, to_auth_user
+from app.features.activity_logs.schemas import ActivityLogCreate
+from app.features.activity_logs.service import create_activity_log, get_actor_role_label
+from app.features.activity_logs.websocket import activity_log_manager
 from app.features.auth.schemas import LoginRequest, LoginResponse
 from app.features.auth.service import authenticate_account
 
@@ -29,6 +32,17 @@ async def login(payload: LoginRequest, db: Annotated[AsyncSession, Depends(get_d
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.")
 
     await record_login(db, account)
+    await record_auth_log(
+        db,
+        category="System",
+        severity="Info",
+        actor=account.display_name,
+        actor_role=get_actor_role_label(account),
+        action="Login",
+        target=account.email,
+        summary=f"{account.display_name} signed in to TANAW.",
+        source_id=account.id,
+    )
     token = create_access_token(account.id, {"role": account.role.value, "must_change_password": account.must_change_password})
     return LoginResponse(token=token, user=to_auth_user(account))
 
@@ -36,6 +50,25 @@ async def login(payload: LoginRequest, db: Annotated[AsyncSession, Depends(get_d
 @router.get("/me", response_model=AuthUser)
 async def me(account: Annotated[Account, Depends(get_current_account)]) -> AuthUser:
     return to_auth_user(account)
+
+
+@router.post("/logout")
+async def logout(
+    account: Annotated[Account, Depends(get_current_account)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, str]:
+    await record_auth_log(
+        db,
+        category="System",
+        severity="Info",
+        actor=account.display_name,
+        actor_role=get_actor_role_label(account),
+        action="Logout",
+        target=account.email,
+        summary=f"{account.display_name} signed out of TANAW.",
+        source_id=account.id,
+    )
+    return {"status": "ok"}
 
 
 @router.post("/change-password", response_model=LoginResponse)
@@ -48,5 +81,44 @@ async def change_password(
     if not changed:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect.")
 
+    await record_auth_log(
+        db,
+        category="System",
+        severity="Success",
+        actor=account.display_name,
+        actor_role=get_actor_role_label(account),
+        action="Password Changed",
+        target=account.email,
+        summary=f"{account.display_name} changed their account password.",
+        source_id=account.id,
+    )
     token = create_access_token(account.id, {"role": account.role.value, "must_change_password": False})
     return LoginResponse(token=token, user=to_auth_user(account))
+
+
+async def record_auth_log(
+    db: AsyncSession,
+    *,
+    category: str,
+    severity: str,
+    actor: str,
+    actor_role: str,
+    action: str,
+    target: str,
+    summary: str,
+    source_id: str,
+) -> None:
+    log = await create_activity_log(
+        db,
+        ActivityLogCreate(
+            category=category,  # type: ignore[arg-type]
+            severity=severity,  # type: ignore[arg-type]
+            actor=actor,
+            actorRole=actor_role,  # type: ignore[arg-type]
+            action=action,
+            target=target,
+            summary=summary,
+            sourceId=source_id,
+        ),
+    )
+    await activity_log_manager.broadcast(log)

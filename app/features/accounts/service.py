@@ -19,8 +19,15 @@ def to_auth_user(account: Account) -> AuthUser:
         role=account.role.value,
         title=account.title,
         mustChangePassword=account.must_change_password,
+        phone=account.phone,
+        firstName=account.first_name,
+        lastName=account.last_name,
         enterpriseId=account.enterprise_id,
         enterpriseName=account.enterprise_name,
+        category=account.category,
+        managerName=account.manager_name,
+        barangay=account.barangay,
+        address=account.address,
     )
 
 

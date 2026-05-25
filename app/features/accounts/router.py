@@ -30,6 +30,9 @@ from app.features.accounts.service import (
     to_account_summary,
     to_delivery_summary,
 )
+from app.features.activity_logs.schemas import ActivityLogCreate
+from app.features.activity_logs.service import create_activity_log
+from app.features.activity_logs.websocket import activity_log_manager
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 dev_router = APIRouter(prefix="/dev", tags=["dev"])
@@ -49,7 +52,7 @@ async def list_lgu_accounts(
 @router.post("/lgu", response_model=AccountSummary, status_code=status.HTTP_201_CREATED)
 async def create_lgu_account(
     payload: LguAccountCreate,
-    _: ITAccount,
+    actor: ITAccount,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> AccountSummary:
     existing = await get_account_by_email(db, str(payload.email))
@@ -71,6 +74,28 @@ async def create_lgu_account(
         title=title_by_role[role],
         first_name=payload.firstName,
         last_name=payload.lastName,
+    )
+    await record_account_log(
+        db,
+        category="IT Activity",
+        severity="Success",
+        actor=actor.display_name,
+        actor_role="IT Personnel",
+        action="Create LGU Account",
+        target=account.email,
+        summary=f"{actor.display_name} created {account.title} account {account.display_name}.",
+        source_id=account.id,
+    )
+    await record_account_log(
+        db,
+        category="System",
+        severity="Info",
+        actor="TANAW System",
+        actor_role="System",
+        action="Credentials Sent",
+        target=account.email,
+        summary=f"The system recorded onboarding credentials for {account.display_name}.",
+        source_id=account.id,
     )
     return to_account_summary(account)
 
@@ -109,7 +134,7 @@ async def geocode_enterprise_location(
 @router.post("/enterprises", response_model=AccountSummary, status_code=status.HTTP_201_CREATED)
 async def create_enterprise_account(
     payload: EnterpriseAccountCreate,
-    _: ITAccount,
+    actor: ITAccount,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> AccountSummary:
     existing = await get_account_by_email(db, str(payload.email))
@@ -167,26 +192,72 @@ async def create_enterprise_account(
         enterprise_id=enterprise_id,
         gateway_status="Not Linked",
     )
+    await record_account_log(
+        db,
+        category="IT Activity",
+        severity="Success",
+        actor=actor.display_name,
+        actor_role="IT Personnel",
+        action="Create Enterprise Account",
+        target=account.enterprise_name or account.email,
+        summary=f"{actor.display_name} registered enterprise account {account.enterprise_name}.",
+        source_id=account.id,
+        metadata={"enterpriseId": account.enterprise_id, "barangay": account.barangay},
+    )
+    await record_account_log(
+        db,
+        category="System",
+        severity="Info",
+        actor="TANAW System",
+        actor_role="System",
+        action="Credentials Sent",
+        target=account.email,
+        summary=f"The system recorded onboarding credentials for enterprise {account.enterprise_name}.",
+        source_id=account.id,
+    )
     return to_account_summary(account)
 
 
 @router.post("/{account_id}/reset-password", response_model=AccountSummary)
 async def reset_password(
     account_id: str,
-    _: ITAccount,
+    actor: ITAccount,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> AccountSummary:
     account = await get_account_by_id(db, account_id)
     if account is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
-    return to_account_summary(await reset_account_password(db, account))
+    updated_account = await reset_account_password(db, account)
+    await record_account_log(
+        db,
+        category="IT Activity",
+        severity="Warning",
+        actor=actor.display_name,
+        actor_role="IT Personnel",
+        action="Reset Password",
+        target=updated_account.display_name,
+        summary=f"{actor.display_name} reset temporary credentials for {updated_account.display_name}.",
+        source_id=updated_account.id,
+    )
+    await record_account_log(
+        db,
+        category="System",
+        severity="Info",
+        actor="TANAW System",
+        actor_role="System",
+        action="Credentials Sent",
+        target=updated_account.email,
+        summary=f"The system recorded reset credentials for {updated_account.display_name}.",
+        source_id=updated_account.id,
+    )
+    return to_account_summary(updated_account)
 
 
 @router.patch("/{account_id}/status", response_model=AccountSummary)
 async def update_account_status(
     account_id: str,
     payload: AccountStatusUpdate,
-    _: ITAccount,
+    actor: ITAccount,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> AccountSummary:
     account = await get_account_by_id(db, account_id)
@@ -196,7 +267,49 @@ async def update_account_status(
     account.status = AccountStatus(payload.status)
     await db.commit()
     await db.refresh(account)
+    await record_account_log(
+        db,
+        category="IT Activity",
+        severity="Success" if account.status == AccountStatus.ACTIVE else "Warning",
+        actor=actor.display_name,
+        actor_role="IT Personnel",
+        action="Update Account Status",
+        target=account.display_name,
+        summary=f"{actor.display_name} changed {account.display_name} account status to {account.status.value}.",
+        source_id=account.id,
+        metadata={"status": account.status.value},
+    )
     return to_account_summary(account)
+
+
+async def record_account_log(
+    db: AsyncSession,
+    *,
+    category: str,
+    severity: str,
+    actor: str,
+    actor_role: str,
+    action: str,
+    target: str,
+    summary: str,
+    source_id: str,
+    metadata: dict[str, str | int | float | bool | None] | None = None,
+) -> None:
+    log = await create_activity_log(
+        db,
+        ActivityLogCreate(
+            category=category,  # type: ignore[arg-type]
+            severity=severity,  # type: ignore[arg-type]
+            actor=actor,
+            actorRole=actor_role,  # type: ignore[arg-type]
+            action=action,
+            target=target,
+            summary=summary,
+            sourceId=source_id,
+            metadata=metadata,
+        ),
+    )
+    await activity_log_manager.broadcast(log)
 
 
 @dev_router.get("/deliveries", response_model=list[DeliverySummary])
