@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -5,12 +6,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.features.accounts.dependencies import require_roles
+from app.features.accounts.geocoding import GeocodingNoResult, GeocodingUnavailable, geocode_enterprise_address, is_inside_san_pedro
 from app.features.accounts.models import Account, AccountRole, AccountStatus
 from app.features.accounts.schemas import (
     AccountStatusUpdate,
     AccountSummary,
     DeliverySummary,
     EnterpriseAccountCreate,
+    EnterpriseGeocodeRequest,
+    EnterpriseGeocodeResult,
     LguAccountCreate,
 )
 from app.features.accounts.service import (
@@ -80,6 +84,28 @@ async def list_enterprise_accounts(
     return [to_account_summary(account) for account in accounts]
 
 
+@router.post("/enterprises/geocode", response_model=EnterpriseGeocodeResult)
+async def geocode_enterprise_location(
+    payload: EnterpriseGeocodeRequest,
+    _: ITAccount,
+) -> EnterpriseGeocodeResult:
+    try:
+        candidate = await geocode_enterprise_address(payload.address, payload.barangay, payload.enterpriseName)
+    except GeocodingNoResult as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except GeocodingUnavailable as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+    return EnterpriseGeocodeResult(
+        latitude=candidate.latitude,
+        longitude=candidate.longitude,
+        displayAddress=candidate.display_address,
+        confidence=candidate.confidence,
+        provider=candidate.provider,
+        source=candidate.source,
+    )
+
+
 @router.post("/enterprises", response_model=AccountSummary, status_code=status.HTTP_201_CREATED)
 async def create_enterprise_account(
     payload: EnterpriseAccountCreate,
@@ -89,6 +115,35 @@ async def create_enterprise_account(
     existing = await get_account_by_email(db, str(payload.email))
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account with this email already exists.")
+
+    latitude = payload.latitude
+    longitude = payload.longitude
+    location_source = payload.locationSource
+    location_confidence = payload.locationConfidence
+    geocoded_address = payload.geocodedAddress
+    location_updated_at = None
+
+    if (latitude is None) != (longitude is None):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Latitude and longitude must be provided together.")
+
+    if latitude is not None and longitude is not None:
+        if not is_inside_san_pedro(latitude, longitude):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Enterprise location must be inside San Pedro, Laguna.")
+        location_source = location_source or "manual"
+        location_updated_at = datetime.now(UTC)
+    else:
+        try:
+            candidate = await geocode_enterprise_address(payload.address, payload.barangay, payload.enterpriseName)
+        except (GeocodingNoResult, GeocodingUnavailable):
+            candidate = None
+
+        if candidate is not None:
+            latitude = candidate.latitude
+            longitude = candidate.longitude
+            location_source = candidate.source
+            location_confidence = candidate.confidence
+            geocoded_address = candidate.display_address
+            location_updated_at = datetime.now(UTC)
 
     enterprise_id = await generate_enterprise_id(db, payload.enterpriseId or payload.enterpriseName)
     account = await create_account_with_temporary_password(
@@ -103,6 +158,12 @@ async def create_enterprise_account(
         manager_name=payload.managerName,
         barangay=payload.barangay,
         address=payload.address,
+        latitude=latitude,
+        longitude=longitude,
+        location_source=location_source,
+        location_confidence=location_confidence,
+        geocoded_address=geocoded_address,
+        location_updated_at=location_updated_at,
         enterprise_id=enterprise_id,
         gateway_status="Not Linked",
     )

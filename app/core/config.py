@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     default_it_username: str = "default@email.tanaw"
     default_it_password: str = "default"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
+    geocoder_provider: str = "nominatim"
+    geocoder_api_key: str | None = None
+    geocoder_base_url: str | None = None
+    geocoder_user_agent: str = "TANAW/1.0 local-development"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

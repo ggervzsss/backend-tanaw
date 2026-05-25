@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Enum, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, Float, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -33,6 +33,12 @@ class Account(Base):
     manager_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     barangay: Mapped[str | None] = mapped_column(String(120), nullable=True)
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    location_source: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    location_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    geocoded_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    location_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     enterprise_id: Mapped[str | None] = mapped_column(String(120), unique=True, index=True, nullable=True)
     gateway_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     gateway_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
