@@ -8,7 +8,7 @@ from app.db.session import get_db
 from app.features.accounts.dependencies import get_current_account
 from app.features.accounts.models import Account, AccountRole, AccountStatus
 from app.features.accounts.schemas import AuthUser, PasswordChangeRequest
-from app.features.accounts.service import change_account_password, record_login, to_auth_user
+from app.features.accounts.service import change_account_password, invalidate_account_tokens, record_login, to_auth_user
 from app.features.activity_logs.schemas import ActivityLogCreate
 from app.features.activity_logs.service import create_activity_log, get_actor_role_label
 from app.features.activity_logs.websocket import activity_log_manager
@@ -78,6 +78,7 @@ async def logout(
         summary=f"{account.display_name} signed out of TANAW.",
         source_id=account.id,
     )
+    await invalidate_account_tokens(db, account)
     return {"status": "ok"}
 
 

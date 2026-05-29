@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decode_access_token
 from app.db.session import AsyncSessionLocal, get_db
-from app.features.accounts.dependencies import get_current_operational_account
+from app.features.accounts.dependencies import get_current_operational_account, is_token_invalidated
 from app.features.accounts.models import Account, AccountRole, AccountStatus
 from app.features.accounts.service import get_account_by_id
 from app.features.activity_logs.schemas import ActivityLogCreate, ActivityLogSummary
@@ -81,6 +81,6 @@ async def authenticate_websocket_account(db: AsyncSession, token: str) -> Accoun
         return None
 
     account = await get_account_by_id(db, account_id)
-    if account is None or account.status != AccountStatus.ACTIVE or account.must_change_password:
+    if account is None or account.status != AccountStatus.ACTIVE or account.must_change_password or is_token_invalidated(payload, account):
         return None
     return account

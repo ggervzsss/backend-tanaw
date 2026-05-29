@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Annotated
 
 import jwt
@@ -33,8 +34,25 @@ async def get_current_account(
     account = await get_account_by_id(db, account_id)
     if account is None or account.status != AccountStatus.ACTIVE:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account is not active.")
+    if is_token_invalidated(payload, account):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token.")
 
     return account
+
+
+def is_token_invalidated(payload: dict, account: Account) -> bool:
+    if account.token_invalid_before is None:
+        return False
+
+    issued_at = payload.get("iat")
+    if not isinstance(issued_at, int | float):
+        return True
+
+    invalid_before = account.token_invalid_before
+    if invalid_before.tzinfo is None:
+        invalid_before = invalid_before.replace(tzinfo=UTC)
+
+    return datetime.fromtimestamp(issued_at, UTC) <= invalid_before
 
 
 def require_roles(allowed_roles: set[str]):

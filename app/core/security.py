@@ -20,8 +20,9 @@ def verify_password(password: str, hashed_password: str) -> bool:
 
 def create_access_token(subject: str, claims: dict[str, Any] | None = None) -> str:
     settings = get_settings()
-    expires_at = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
-    payload: dict[str, Any] = {"sub": subject, "exp": expires_at}
+    issued_at = datetime.now(UTC)
+    expires_at = issued_at + timedelta(minutes=settings.access_token_expire_minutes)
+    payload: dict[str, Any] = {"sub": subject, "iat": issued_at, "exp": expires_at}
     if claims:
         payload.update(claims)
 

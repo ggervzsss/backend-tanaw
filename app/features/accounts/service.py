@@ -75,6 +75,16 @@ def to_delivery_summary(delivery: DevDelivery) -> DeliverySummary:
     )
 
 
+def is_temporary_password_expired(account: Account) -> bool:
+    if not account.must_change_password or account.temporary_password_expires_at is None:
+        return False
+
+    expires_at = account.temporary_password_expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=UTC)
+    return expires_at <= datetime.now(UTC)
+
+
 async def get_account_by_email(db: AsyncSession, email: str) -> Account | None:
     return await db.scalar(select(Account).where(Account.email == email.lower()))
 
@@ -90,6 +100,11 @@ async def get_account_by_id(db: AsyncSession, account_id: str) -> Account | None
 
 async def record_login(db: AsyncSession, account: Account) -> None:
     account.last_login_at = datetime.now(UTC)
+    await db.commit()
+
+
+async def invalidate_account_tokens(db: AsyncSession, account: Account) -> None:
+    account.token_invalid_before = datetime.now(UTC)
     await db.commit()
 
 
@@ -231,6 +246,7 @@ async def reset_account_password(db: AsyncSession, account: Account) -> Account:
     account.must_change_password = True
     account.temporary_password_created_at = now
     account.temporary_password_expires_at = now + timedelta(days=7)
+    account.token_invalid_before = now
     db.add(create_onboarding_delivery(account, temporary_password, DeliveryChannel.EMAIL, account.email))
     if account.phone:
         db.add(create_onboarding_delivery(account, temporary_password, DeliveryChannel.SMS, account.phone))
@@ -241,6 +257,8 @@ async def reset_account_password(db: AsyncSession, account: Account) -> Account:
 
 async def change_account_password(db: AsyncSession, account: Account, current_password: str, new_password: str) -> bool:
     if not verify_password(current_password, account.password_hash):
+        return False
+    if is_temporary_password_expired(account):
         return False
 
     account.password_hash = hash_password(new_password)

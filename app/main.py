@@ -34,6 +34,7 @@ async def ensure_account_onboarding_schema(connection) -> None:
         "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS temporary_password_created_at TIMESTAMP WITH TIME ZONE",
         "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS temporary_password_expires_at TIMESTAMP WITH TIME ZONE",
         "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP WITH TIME ZONE",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS token_invalid_before TIMESTAMP WITH TIME ZONE",
     ]
     for statement in statements:
         await connection.exec_driver_sql(statement)
